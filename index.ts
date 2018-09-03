@@ -1,6 +1,7 @@
 import "isomorphic-fetch";
-import { CloudcastsPage } from "./types/cloudcasts";
-import * as R from "ramda";
+import { CloudcastsPage, Datum } from "./types/cloudcasts";
+import { Bar } from "cli-progress";
+const dl = require("download-file-with-progressbar");
 
 type Options = {
     maxPages: number
@@ -12,30 +13,23 @@ const defaultOptions: Options = {
 
 const fetchCloudcasts = async (user: string, options = defaultOptions) => {
     const url = `https://api.mixcloud.com/${user}/cloudcasts/`;
+    let nextPage: string | undefined = url;
+    const pages: CloudcastsPage[] = [];
 
-    const notAtMaxPages = (pageCount: number) =>
-        options.maxPages == 0 || pageCount < options.maxPages;
+    while (nextPage) {
 
-    const shouldGetNextPage = (nextPage: string | undefined, pages: CloudcastsPage[]) =>
-        nextPage && notAtMaxPages(pages.length)
+        const page: CloudcastsPage = await fetchCloudcastPage(nextPage);
+        pages.push(page);
 
-    const cloudcasts = await fetchAllPages(url, [], shouldGetNextPage);
+        if (options.maxPages != 0 && pages.length >= options.maxPages)
+            break;
 
-    return cloudcasts;
-}
-
-const fetchAllPages = async (url: string, pages: CloudcastsPage[],
-    shouldGetNextPage: (nextPage: string | undefined, pages: CloudcastsPage[]) => boolean):
-
-    Promise<CloudcastsPage[]> => {
-
-    const page = await fetchCloudcastPage(url);
-    pages = [...pages, page];
-    if (page.paging)
-        return fetchAllPages(page.paging.next, pages);
+        nextPage = page.paging && page.paging.next ? page.paging.next : undefined;
+    }
 
     return pages;
 }
+
 
 const fetchCloudcastPage = async (url: string) => {
     console.log("fetching cloudcasts page: " + url);
@@ -45,13 +39,54 @@ const fetchCloudcastPage = async (url: string) => {
 }
 
 async function init() {
-    console.log('hello world!');
-    const cloudcasts = await fetchCloudcasts("Luc_Forlorn");
-    // const dates = feed.data.map(d => ({
-    //     created: d.created_time,
-    //     name: d.name
-    // }));
-    // console.log(dates);
+
+    const user = process.argv[2];
+
+    if (!user)
+        return console.error("Please supply a mixcloud user to download");
+
+    console.log(`Downloading cloudcasts from ${user}..`);
+
+    const pages = await fetchCloudcasts(user, {
+        maxPages: 1
+    });
+
+    const datums = pages.reduce((prev: Datum[], curr) => [...prev, ...curr.data], []);
+
+    const casts = datums.map(d => ({
+        url: d.url.replace("https://www.mixcloud.com",
+            "http://download.mixcloud-downloader.com/d/mixcloud"),
+        name: d.name
+    }));
+
+    const bar = new Bar({});
+    bar.start(100, 0);
+
+    for (var cast of casts) {
+
+        console.log(`Downloading '${cast.name}'...`)
+
+        await dl(casts[0], {
+            filename: `${cast.name}.m4a`,
+            dir: __dirname,
+            onDone: (info: any) => {
+                console.log('done', info);
+            },
+            onError: (err: any) => {
+                console.log('Error downloading', err);
+            },
+            onProgress: (curr: number, total: number) => {
+                const percent = (curr / total * 100)
+                bar.update(percent);
+            }
+        });
+
+    }
+
+
+
+
+
     //const page = await fetchFeedPage(feed.paging.next);
     //console.log(page);
 }
