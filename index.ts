@@ -1,94 +1,126 @@
 import "isomorphic-fetch";
 import { CloudcastsPage, Datum } from "./types/cloudcasts";
 import { Bar } from "cli-progress";
+import * as fs from "fs";
+import program from "commander";
+import shell from "shelljs";
 const dl = require("download-file-with-progressbar");
 
 type Options = {
-    maxPages: number
-}
+  maxPages: number;
+};
 
 const defaultOptions: Options = {
-    maxPages: 0
-}
+  maxPages: 0
+};
 
-const fetchCloudcasts = async (user: string, options = defaultOptions) => {
-    const url = `https://api.mixcloud.com/${user}/cloudcasts/`;
-    let nextPage: string | undefined = url;
-    const pages: CloudcastsPage[] = [];
+const fetchCloudcasts = async (
+  artistName: string,
+  options = defaultOptions
+) => {
+  const url = `https://api.mixcloud.com/${artistName}/cloudcasts/?limit=100`;
+  let nextPage: string | undefined = url;
+  const pages: CloudcastsPage[] = [];
 
-    while (nextPage) {
+  console.log(`Fetching Cloudcast data for artist ${artistName}..`);
 
-        const page: CloudcastsPage = await fetchCloudcastPage(nextPage);
-        pages.push(page);
+  while (nextPage) {
+    const page: CloudcastsPage = await fetchCloudcastPage(nextPage);
+    pages.push(page);
 
-        if (options.maxPages != 0 && pages.length >= options.maxPages)
-            break;
+    if (options.maxPages != 0 && pages.length >= options.maxPages) break;
 
-        nextPage = page.paging && page.paging.next ? page.paging.next : undefined;
-    }
+    nextPage = page.paging && page.paging.next ? page.paging.next : undefined;
+  }
 
-    return pages;
-}
-
+  return pages;
+};
 
 const fetchCloudcastPage = async (url: string) => {
-    console.log("fetching cloudcasts page: " + url);
-    const response = await fetch(url);
-    const obj: CloudcastsPage = await response.json();
-    return obj;
-}
+  console.log("Fetching Cloudcast data page at: " + url);
+  const response = await fetch(url);
+  const obj: CloudcastsPage = await response.json();
+  return obj;
+};
 
-async function init() {
-
-    const user = process.argv[2];
-
-    if (!user)
-        return console.error("Please supply a mixcloud user to download");
-
-    console.log(`Downloading cloudcasts from ${user}..`);
-
-    const pages = await fetchCloudcasts(user, {
-        maxPages: 1
+const download = (url: string, filename: string, bar: Bar) =>
+  new Promise((resolve, reject) => {
+    dl(url, {
+      filename,
+      dir: __dirname,
+      onDone: (info: any) => {
+        resolve();
+      },
+      onError: (err: any) => {
+        reject(err);
+      },
+      onProgress: (curr: number, total: number) => {
+        bar.setTotal(total);
+        bar.update(curr);
+      }
     });
+  });
 
-    const datums = pages.reduce((prev: Datum[], curr) => [...prev, ...curr.data], []);
+async function downloadArtistCloudcasts(
+  artistName: string,
+  outputDir: string,
+  options: Options = defaultOptions
+) {
+  console.log("Starting..", {
+    artistName,
+    outputDir,
+    options
+  });
 
-    const casts = datums.map(d => ({
-        url: d.url.replace("https://www.mixcloud.com",
-            "http://download.mixcloud-downloader.com/d/mixcloud"),
-        name: d.name
-    }));
+  const pages = await fetchCloudcasts(artistName, options);
 
-    const bar = new Bar({});
-    bar.start(100, 0);
+  const datums = pages.reduce(
+    (prev: Datum[], curr) => [...prev, ...curr.data],
+    []
+  );
 
-    for (var cast of casts) {
+  const casts = datums.map(d => ({
+    url: d.url.replace(
+      "https://www.mixcloud.com",
+      "http://download.mixcloud-downloader.com/d/mixcloud"
+    ),
+    name: d.name
+  }));
 
-        console.log(`Downloading '${cast.name}'...`)
+  shell.mkdir("-p", outputDir);
 
-        await dl(casts[0], {
-            filename: `${cast.name}.m4a`,
-            dir: __dirname,
-            onDone: (info: any) => {
-                console.log('done', info);
-            },
-            onError: (err: any) => {
-                console.log('Error downloading', err);
-            },
-            onProgress: (curr: number, total: number) => {
-                const percent = (curr / total * 100)
-                bar.update(percent);
-            }
-        });
+  const bar = new Bar({});
 
+  let count = 0;
+  for (var cast of casts) {
+    count++;
+    const filename = `${outputDir}/${cast.name}.m4a`;
+    console.log(`Downloading ${count} of ${casts.length} '${cast.name}'...`);
+    if (fs.existsSync(`${__dirname}/${filename}`)) {
+      console.log("Download already exists.. Skipping...");
+      continue;
     }
 
+    bar.start(100, 0);
+    await download(cast.url, filename, bar);
+    bar.stop();
+  }
 
-
-
-
-    //const page = await fetchFeedPage(feed.paging.next);
-    //console.log(page);
+  console.log("All done, happy listening!");
 }
 
-init();
+program
+  .version("0.0.1")
+  .arguments("<artist> <output_directory>")
+  .option(
+    "-p, --maxPages <maxPages>",
+    "the max number of pages of data to fetch for an artist",
+    parseFloat,
+    defaultOptions.maxPages
+  )
+  .action((artist, output_directory, options) => {
+    downloadArtistCloudcasts(artist, output_directory, {
+      maxPages: options.maxPages
+    });
+  })
+  .parse(process.argv);
