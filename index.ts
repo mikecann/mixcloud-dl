@@ -61,6 +61,31 @@ const download = (url: string, filename: string, bar: Bar) =>
     });
   });
 
+const getSlowStreamUrlFromMixcloudUrl = async (mixcloudUrl: string) => {
+  const url = mixcloudUrl.replace(
+    "https://www.mixcloud.com",
+    "http://www.mixcloud-downloader.com/dl/mixcloud"
+  );
+  const response = await fetch(url + "?utm_source=mixcloud-dl");
+  const html = await response.text();
+  const matches = html.match(/href="([^\'\"]+)/g);
+  if (!matches)
+    throw new Error(
+      "Couldnt find the stream from the mixcloud url: " + mixcloudUrl
+    );
+
+  const match = matches
+    .map(m => m.replace(`href="`, ""))
+    .find(m => m.includes("http://stream"));
+
+  if (!match)
+    throw new Error(
+      "Couldnt find the stream from the mixcloud url: " + mixcloudUrl
+    );
+
+  return match;
+};
+
 async function downloadArtistCloudcasts(
   artistName: string,
   outputDir: string,
@@ -80,10 +105,7 @@ async function downloadArtistCloudcasts(
   );
 
   const casts = datums.map(d => ({
-    url: d.url.replace(
-      "https://www.mixcloud.com",
-      "http://download.mixcloud-downloader.com/d/mixcloud"
-    ),
+    url: d.url,
     name: d.name
   }));
 
@@ -96,13 +118,14 @@ async function downloadArtistCloudcasts(
     count++;
     const filename = `${outputDir}/${cast.name}.m4a`;
     console.log(`Downloading ${count} of ${casts.length} '${cast.name}'...`);
-    if (fs.existsSync(`${__dirname}/${filename}`)) {
+    if (fs.existsSync(`${filename}`)) {
       console.log("Download already exists.. Skipping...");
       continue;
     }
 
     bar.start(100, 0);
-    await download(cast.url, filename, bar);
+    const url = await getSlowStreamUrlFromMixcloudUrl(cast.url);
+    await download(url, filename, bar);
     bar.stop();
   }
 
