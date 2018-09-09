@@ -4,6 +4,7 @@ import { Bar } from "cli-progress";
 import * as fs from "fs";
 import program from "commander";
 import shell from "shelljs";
+import { resolve } from "path";
 const dl = require("download-file-with-progressbar");
 
 type Options = {
@@ -43,48 +44,26 @@ const fetchCloudcastPage = async (url: string) => {
   return obj;
 };
 
-const download = (url: string, filename: string, bar: Bar) =>
-  new Promise((resolve, reject) => {
-    dl(url, {
-      filename,
-      dir: __dirname,
-      onDone: (info: any) => {
-        resolve();
-      },
-      onError: (err: any) => {
-        reject(err);
-      },
-      onProgress: (curr: number, total: number) => {
-        bar.setTotal(total);
-        bar.update(curr);
-      }
-    });
-  });
+// const download = (url: string, filename: string, bar: Bar) =>
+//   new Promise((resolve, reject) => {
+//     dl(url, {
+//       filename,
+//       dir: __dirname,
+//       onDone: (info: any) => {
+//         resolve();
+//       },
+//       onError: (err: any) => {
+//         reject(err);
+//       },
+//       onProgress: (curr: number, total: number) => {
+//         bar.setTotal(total);
+//         bar.update(curr);
+//       }
+//     });
+//   });
 
-const getSlowStreamUrlFromMixcloudUrl = async (mixcloudUrl: string) => {
-  const url = mixcloudUrl.replace(
-    "https://www.mixcloud.com",
-    "http://www.mixcloud-downloader.com/dl/mixcloud"
-  );
-  const response = await fetch(url + "?utm_source=mixcloud-dl");
-  const html = await response.text();
-  const matches = html.match(/href="([^\'\"]+)/g);
-  if (!matches)
-    throw new Error(
-      "Couldnt find the stream from the mixcloud url: " + mixcloudUrl
-    );
-
-  const match = matches
-    .map(m => m.replace(`href="`, ""))
-    .find(m => m.includes("http://stream"));
-
-  if (!match)
-    throw new Error(
-      "Couldnt find the stream from the mixcloud url: " + mixcloudUrl
-    );
-
-  return match;
-};
+const download = async (url: string, output: string) =>
+  await shell.exec(`${__dirname}/binaries/youtube-dl.exe ${url} -o ${output}`);
 
 async function downloadArtistCloudcasts(
   artistName: string,
@@ -111,22 +90,21 @@ async function downloadArtistCloudcasts(
 
   shell.mkdir("-p", outputDir);
 
-  const bar = new Bar({});
+  //const bar = new Bar({});
 
   let count = 0;
   for (var cast of casts) {
     count++;
-    const filename = `${outputDir}/${cast.name}.m4a`;
+    const filename = `${outputDir}/%(title)s-%(id)s.%(ext)s`;
     console.log(`Downloading ${count} of ${casts.length} '${cast.name}'...`);
     if (fs.existsSync(`${filename}`)) {
       console.log("Download already exists.. Skipping...");
       continue;
     }
 
-    bar.start(100, 0);
-    const url = await getSlowStreamUrlFromMixcloudUrl(cast.url);
-    await download(url, filename, bar);
-    bar.stop();
+    //bar.start(100, 0);
+    await download(cast.url, filename);
+    //bar.stop();
   }
 
   console.log("All done, happy listening!");
