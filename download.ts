@@ -27,6 +27,6 @@ export const ensureYoutubeDlIsIntalled = () => {
 };
 
 export const download = (url: string, output: string) => {
-  const resp = shell.exec(`youtube-dl ${url} -o ${output}`);
+  const resp = shell.exec(`youtube-dl "${url}" -o "${output}"`);
   if (resp.stderr) throw new Error("Error during download.");
 };
