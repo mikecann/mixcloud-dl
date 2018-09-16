@@ -1,10 +1,8 @@
 import "isomorphic-fetch";
 import { CloudcastsPage, Datum } from "./types/cloudcasts";
-import { Bar } from "cli-progress";
 import * as fs from "fs";
 import program from "commander";
 import shell from "shelljs";
-import { resolve } from "path";
 const dl = require("download-file-with-progressbar");
 
 type Options = {
@@ -44,24 +42,6 @@ const fetchCloudcastPage = async (url: string) => {
   return obj;
 };
 
-// const download = (url: string, filename: string, bar: Bar) =>
-//   new Promise((resolve, reject) => {
-//     dl(url, {
-//       filename,
-//       dir: __dirname,
-//       onDone: (info: any) => {
-//         resolve();
-//       },
-//       onError: (err: any) => {
-//         reject(err);
-//       },
-//       onProgress: (curr: number, total: number) => {
-//         bar.setTotal(total);
-//         bar.update(curr);
-//       }
-//     });
-//   });
-
 const download = async (url: string, output: string) =>
   await shell.exec(`${__dirname}/binaries/youtube-dl.exe ${url} -o ${output}`);
 
@@ -90,8 +70,6 @@ async function downloadArtistCloudcasts(
 
   shell.mkdir("-p", outputDir);
 
-  //const bar = new Bar({});
-
   let count = 0;
   for (var cast of casts) {
     count++;
@@ -102,9 +80,7 @@ async function downloadArtistCloudcasts(
       continue;
     }
 
-    //bar.start(100, 0);
     await download(cast.url, filename);
-    //bar.stop();
   }
 
   console.log("All done, happy listening!");

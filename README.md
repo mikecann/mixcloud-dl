@@ -6,7 +6,9 @@ Currently only works with Windows but if other Os' are requested it shouldnt be 
 
 ## Install
 
-`yarn global add mixcloud-dl`
+Clone this repo then:
+
+`yarn install`
 
 ## Usage
 
