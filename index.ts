@@ -3,7 +3,7 @@ import { CloudcastsPage, Datum } from "./types/cloudcasts";
 import * as fs from "fs";
 import program from "commander";
 import shell from "shelljs";
-const dl = require("download-file-with-progressbar");
+import { ensureYoutubeDlIsIntalled, download } from "./download";
 
 type Options = {
   maxPages: number;
@@ -42,9 +42,6 @@ const fetchCloudcastPage = async (url: string) => {
   return obj;
 };
 
-const download = async (url: string, output: string) =>
-  await shell.exec(`${__dirname}/binaries/youtube-dl.exe ${url} -o ${output}`);
-
 async function downloadArtistCloudcasts(
   artistName: string,
   outputDir: string,
@@ -55,6 +52,8 @@ async function downloadArtistCloudcasts(
     outputDir,
     options
   });
+
+  await ensureYoutubeDlIsIntalled();
 
   const pages = await fetchCloudcasts(artistName, options);
 

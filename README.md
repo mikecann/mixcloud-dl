@@ -1,10 +1,16 @@
 # mixcloud-dl
 
-A CLI that downloads all the mixes for a given artist.
+A handy CLI that downloads all the mixes for a given artist.
 
-Currently only works with Windows but if other Os' are requested it shouldnt be hard to support.
+Should work everywhere python works. Makes heavy use of the excellent [youtube-dl](https://github.com/rg3/youtube-dl) library.
+
+It will skip downloads that have already been downloaded.
+
+Currently runs single threaded so not to trigger API flooding on mixcloud.
 
 ## Install
+
+Ensure you have Python installed and `pip` is available on the command line.
 
 Clone this repo then:
 
